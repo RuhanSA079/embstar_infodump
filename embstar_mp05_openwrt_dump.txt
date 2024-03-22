@@ -1,0 +1,173 @@
+
+device kernel dmesg (mtdblocks):
+--------------------------------
+[    0.854473] 0x000000000000-0x000000040000 : "u-boot"
+[    0.861491] 0x000000040000-0x000000050000 : "u-boot-env"
+[    0.868970] 0x000000050000-0x000000e80000 : "rootfs"
+[    0.895787] 0x000000e80000-0x000000ff0000 : "kernel"
+[    0.902898] 0x000000ff0000-0x000001000000 : "art"
+[    0.909659] 0x000001000000-0x000001040000 : "reserve"
+[    0.916840] 0x000001040000-0x000002000000 : "user"
+[    0.923783] 0x000000050000-0x000000ff0000 : "firmware"
+
+So basically, from this mtdblocks, we can derive the following:
+0x000000000000-0x000000040000 : "u-boot"
+0x000000040000-0x000000050000 : "u-boot-env"
+0x000000050000-0x000000ff0000 : "firmware -> rootfs + kernel"
+0x000000ff0000-0x000001000000 : "art"
+Not sure what the rest is?
+
+
+Some information on the device:
+-------------------------------
+root@OpenWrt:/# cat /etc/os-release 
+NAME="OpenWrt"
+VERSION="18.06.4"
+ID="openwrt"
+ID_LIKE="lede openwrt"
+PRETTY_NAME="OpenWrt 18.06.4"
+VERSION_ID="18.06.4"
+HOME_URL="http://openwrt.org/"
+BUG_URL="http://bugs.openwrt.org/"
+SUPPORT_URL="http://forum.lede-project.org/"
+BUILD_ID="r7808-ef686b7292"
+LEDE_BOARD="ar71xx/generic"
+LEDE_ARCH="mips_24kc"
+LEDE_TAINTS="no-all"
+LEDE_DEVICE_MANUFACTURER="OpenWrt"
+LEDE_DEVICE_MANUFACTURER_URL="http://openwrt.org/"
+LEDE_DEVICE_PRODUCT="Generic"
+LEDE_DEVICE_REVISION="v0"
+LEDE_RELEASE="OpenWrt 18.06.4 r7808-ef686b7292"
+
+Device_info:
+------------
+root@OpenWrt:/# cat /etc/device_info 
+DEVICE_MANUFACTURER='OpenWrt'
+DEVICE_MANUFACTURER_URL='http://openwrt.org/'
+DEVICE_PRODUCT='Generic'
+DEVICE_REVISION='v0'
+
+gpio info:
+----------
+root@OpenWrt:/# ls /sys/class/gpio/
+export       gpiochip0    gpiochip494  unexport
+root@OpenWrt:/#
+
+kernel GPIO info:
+-----------------
+root@OpenWrt:/# cat /sys/kernel/debug/gpio 
+gpiochip0: GPIOs 0-31, parent: platform/ath79-gpio, ath79-gpio:
+ gpio-0   (                    |m31:green:status    ) out lo    
+ gpio-4   (                    |m31:green:wan       ) out hi    
+ gpio-11  (                    |m31:green:lan4      ) out hi    
+ gpio-12  (                    |m31:green:wlan-2g   ) out lo    
+ gpio-13  (                    |m31:green:wlan5g    ) out hi    
+ gpio-14  (                    |m31:green:lan3      ) out hi    
+ gpio-15  (                    |m31:green:lan2      ) out hi    
+ gpio-16  (                    |m31:green:lan1      ) out lo    
+ gpio-17  (                    |wps button          ) in  hi    
+
+gpiochip1: GPIOs 494-511, ath9k-phy0:
+ gpio-495 (                    |ath9k-phy0          ) in  lo    
+
+
+switchconfig list:
+------------------
+root@OpenWrt:/# swconfig list
+Found: switch0 - eth0
+
+
+swconfig switch0 infodump:
+--------------------------
+root@OpenWrt:/sys/devices/platform/leds-gpio/leds/m31:green:lan2# swconfig dev switch0 show
+Global attributes:
+        enable_vlan: 1
+        mirror_monitor_port: 15
+Port 0:
+        enable_mirror_rx: 0
+        enable_mirror_tx: 0
+        pvid: 0
+        link: port:0 link:up speed:1000baseT full-duplex txflow rxflow 
+Port 1:
+        enable_mirror_rx: 0
+        enable_mirror_tx: 0
+        pvid: 1
+        link: port:1 link:up speed:100baseT full-duplex auto
+Port 2:
+        enable_mirror_rx: 0
+        enable_mirror_tx: 0
+        pvid: 1
+        link: port:2 link:down
+Port 3:  
+        enable_mirror_rx: 0
+        enable_mirror_tx: 0
+        pvid: 1
+        link: port:3 link:down
+Port 4:
+        enable_mirror_rx: 0
+        enable_mirror_tx: 0
+        pvid: 1
+        link: port:4 link:down
+VLAN 0:
+        vid: 0
+        ports: 0t 
+VLAN 1:
+        vid: 1
+        ports: 0t 1 2 3 4
+
+The embstar module has pcie controller and breakout, but not used in this case, but keep pcie enabled for our mainlining purposes?
+
+-----------------------------------------
+Some notes:
+-----------------------------------------
+
+gpios:
+------
+All seems to be active low.
+gpio4  -> wan active-lo
+gpio16 -> lan1 active-lo
+gpio15 -> lan2 active-lo
+gpio14 -> lan3 active-lo
+gpio11 -> lan4 active-lo
+gpio17 -> WPS button, active lo (button pressed -> lo, normal is hi)
+gpio0  -> Unused pin.
+gpio12 -> wlan2g (phy0tpt) indicator, active lo
+gpio13 -> wlan5g/status LED (5g radio not used) -> used as status LED (heartbeat in DTB?)
+
+some configurations to set in 01_leds:
+--------------------------------------
+wan led  -> eth1
+lan1 led -> switch0 0x02
+lan2 led -> switch0 0x04
+lan3 led -> switch0 0x08
+lan4 led -> switch0 0x10
+
+/etc/board.d/01_leds config example:
+------------------------------------
+embstar,mp05)
+  ucidef_set_led_wlan "wlan" "WLAN" "green:wlan" "phy0tpt"
+	ucidef_set_led_netdev "wan" "WAN" "green:wan" "eth1"
+	ucidef_set_led_switch "lan1" "LAN1" "green:lan1" "switch0" "0x02"
+	ucidef_set_led_switch "lan2" "LAN2" "green:lan2" "switch0" "0x04"
+	ucidef_set_led_switch "lan3" "LAN3" "green:lan3" "switch0" "0x08"
+	ucidef_set_led_switch "lan4" "LAN4" "green:lan4" "switch0" "0x10"
+
+/etc/board.d/02_network config example:
+---------------------------------------
+embstar,mp05)
+		ucidef_set_interface_wan "eth1"
+		ucidef_add_switch "switch0" \
+			"0@eth0" "1:lan:1" "2:lan:2" "3:lan:3" "4:lan:4"
+		;;
+
+Not sure about the wireless calibration data as specified in the git sources from Embstar (11-ath10k-hotplug)
+
+Next:
+---------------
+device-tree WIP -> Mostly in-memory on how it can be done.
+---------------
+
+------------
+makefile WIP -> Simple enough, but IMAGE_SIZE=?? How would one determine the image size based on a flash chip?
+------------
