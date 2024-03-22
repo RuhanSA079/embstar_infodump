@@ -1,14 +1,21 @@
 
 device kernel dmesg (mtdblocks):
 --------------------------------
-[    0.854473] 0x000000000000-0x000000040000 : "u-boot"
-[    0.861491] 0x000000040000-0x000000050000 : "u-boot-env"
-[    0.868970] 0x000000050000-0x000000e80000 : "rootfs"
-[    0.895787] 0x000000e80000-0x000000ff0000 : "kernel"
-[    0.902898] 0x000000ff0000-0x000001000000 : "art"
-[    0.909659] 0x000001000000-0x000001040000 : "reserve"
-[    0.916840] 0x000001040000-0x000002000000 : "user"
-[    0.923783] 0x000000050000-0x000000ff0000 : "firmware"
+[    0.831554] m25p80 spi0.0: found mx25l25635e, expected m25p80
+[    0.838101] m25p80 spi0.0: mx25l25635e (32768 Kbytes)
+[    0.843392] 8 cmdlinepart partitions found on MTD device spi0.0
+[    0.849501] Creating 8 MTD partitions on "spi0.0":
+[    0.854465] 0x000000000000-0x000000040000 : "u-boot"
+[    0.861483] 0x000000040000-0x000000050000 : "u-boot-env"
+[    0.868963] 0x000000050000-0x000000e80000 : "rootfs"
+[    0.875597] mtd: device 2 (rootfs) set to be root filesystem
+[    0.881945] 1 squashfs-split partitions found on MTD device rootfs
+[    0.888396] 0x000000390000-0x000000e80000 : "rootfs_data"
+[    0.895782] 0x000000e80000-0x000000ff0000 : "kernel"
+[    0.902891] 0x000000ff0000-0x000001000000 : "art"
+[    0.909652] 0x000001000000-0x000001040000 : "reserve"
+[    0.916831] 0x000001040000-0x000002000000 : "user"
+[    0.923764] 0x000000050000-0x000000ff0000 : "firmware"
 
 So basically, from this mtdblocks, we can derive the following:
 0x000000000000-0x000000040000 : "u-boot"
@@ -17,9 +24,36 @@ So basically, from this mtdblocks, we can derive the following:
 0x000000ff0000-0x000001000000 : "art"
 Not sure what the rest is?
 
+To be able to support my 32MB flash device, we need to calculate maximum flash size, and then add it to our reg property.
+So, we know that the flash size is 32MB. -> 32 * 1024 * 1000 -> 32768000 bytes -> 0x1F40000.
+
+We know that our reg property has a <offset, len> valueset, we need to calculate the length of the "firmware" / "rootfs".
+We can do that by taking the 0x1F40000 (32768000) and subtract it from the initial 0x50000 offset (327680) -> len, 32768000 - 327680 = 33226752 -> 0x1EF0000
+
+Thus, we can input this into our device tree property value ->
+partition@50000 {
+	compatible = "denx,uimage";
+	label = "firmware";
+	reg = <0x050000 0x1EF0000>;
+};
+
+Remember, this is for a 32MB device, your mileage may vary.
 
 Some information on the device:
 -------------------------------
+
+root@OpenWrt:/# cat /proc/mtd 
+dev:    size   erasesize  name
+mtd0: 00040000 00010000 "u-boot"
+mtd1: 00010000 00010000 "u-boot-env"
+mtd2: 00e30000 00010000 "rootfs"
+mtd3: 00af0000 00010000 "rootfs_data"
+mtd4: 00170000 00010000 "kernel"
+mtd5: 00010000 00010000 "art"
+mtd6: 00040000 00010000 "reserve"
+mtd7: 00fc0000 00010000 "user"
+mtd8: 00fa0000 00010000 "firmware"
+
 root@OpenWrt:/# cat /etc/os-release 
 NAME="OpenWrt"
 VERSION="18.06.4"
@@ -161,13 +195,26 @@ embstar,mp05)
 			"0@eth0" "1:lan:1" "2:lan:2" "3:lan:3" "4:lan:4"
 		;;
 
-Not sure about the wireless calibration data as specified in the git sources from Embstar (11-ath10k-hotplug)
-
 Next:
 ---------------
 device-tree WIP -> Mostly in-memory on how it can be done.
 ---------------
 
+32MB partition data is complete.
+GPIOs outstanding, I would need a datasheet/pinout from Embstar on this, to properly map out all the pins that is present on the board.
+
+
 ------------
 makefile WIP -> Simple enough, but IMAGE_SIZE=?? How would one determine the image size based on a flash chip?
 ------------
+I think to calculate image size, one should look to take the whole 32MB flash size, and then subtract all the items we wont need to modify.
+so, for our case, that means we have the ART partition, uboot and uboot-env partition data that we need to subtract from the base 32MB image size.
+
+0x000000000000-0x000000040000 : "u-boot" -> 0x40000 bytes. (262144)
+0x000000040000-0x000000050000 : "u-boot-env" -> 0x10000 bytes. (65536)
+0x000000ff0000-0x000001000000 : "art" -> 0x10000 bytes. (65536)
+
+If we calculate the 3x values together, we get 393216 bytes. 32MB flash (32 * 1024 * 1000) -> 32768000.
+Therefore, 32768000 - 393216 -> 32374784 bytes usable. -> 32374 kb. 
+To be safe, lets make the image size 32000kb, to have some blocks free for flash-wear, erase etc.
+
