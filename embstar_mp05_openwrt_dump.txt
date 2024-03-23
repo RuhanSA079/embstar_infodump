@@ -218,3 +218,169 @@ If we calculate the 3x values together, we get 393216 bytes. 32MB flash (32 * 10
 Therefore, 32768000 - 393216 -> 32374784 bytes usable. -> 32374 kb. 
 To be safe, lets make the image size 32000kb, to have some blocks free for flash-wear, erase etc.
 
+
+Seems like that the preliminary image that I built, is broken...
+-----------------------------------------------------------------
+root@OpenWrt:/# scp ruhan@192.168.1.15:/home/ruhan/openwrt-ath79-generic-embstar_mp05-squashfs-sysupgrade.bin /tmp/sysupgrade.bin
+openwrt-ath79-generic-embstar_mp05-squashfs-s 100% 6785KB   2.2MB/s   00:03    
+
+root@OpenWrt:/# sysupgrade /tmp/sysupgrade.bin
+Device m31 not supported by this image
+Supported devices: embstar,mp05 embstar
+Image check 'fwtool_check_image' failed.
+
+root@OpenWrt:/# sysupgrade -F -n /tmp/sysupgrade.bin 
+Device m31 not supported by this image
+Supported devices: embstar,mp05 embstar
+Image check 'fwtool_check_image' failed but --force given - will update anyway!
+Commencing upgrade. Closing all shell sessions.
+Watchdog handover: fd=3
+- watchdog -
+killall: telnetd: no process killed
+Sending TERM to remaining processes ... ntpd dnsmasq ubusd logd rpcd netifd odhcpd uhttpd 
+Sending KILL to remaining processes ... ntpd 
+Switching to ramdisk...
+Performing system upgrade...
+Unlocking firmware ...
+
+Writing from <stdin> to firmware ...     
+Upgrade completed
+Rebooting system...
+umount: can't unmount /dev: Resource busy
+umount: can't unmount /tmp: Resource busy
+[12420.371573] m25p80: exit 4-byte address mode
+[12420.384511] reboot: Restarting system
+
+After reset, smoosh that Enter button to abort u-boot booting process.
+When you have a shell in u-boot, enter the following:
+
+setenv bootcmd "bootm 0x9f050000 || bootm 0x9fe80000"
+saveenv
+reset
+
+OpenWRT should boot properly now.
+eth1 up
+eth0, eth1
+Setting 0x181162c0 to 0x4b97a100
+Hit any key to stop autoboot:  0 
+ath> setenv bootcmd "bootm 0x9f050000 || bootm 0x9fe80000"
+ath> saveenv
+Saving Environment to Flash...
+Protect off 9F040000 ... 9F04FFFF
+Un-Protecting sectors 4..4 in bank 1
+Un-Protected 1 sectors
+Erasing Flash...Erasing flash... 
+First 0x4 last 0x4 sector size 0x10000
+   4
+Erased 1 sectors
+Writing to Flash... write addr: 9f040000
+done
+Protecting sectors 4..4 in bank 1
+Protected 1 sectors
+ath> reset
+
+U-Boot 1.1.4-gde31d241-dirty (Jan 15 2020 - 11:01:19)
+
+ap147 - Honey Bee 2.0DRAM:  
+sri
+Honey Bee 2.0
+ath_ddr_initial_config(195): (16bit) ddr2 init
+ath_sys_frequency: cpu 650 ddr 597 ahb 216
+tap = 0x00000003
+Tap (low, high) = (0xb, 0x28)
+Tap values = (0x19, 0x19, 0x19, 0x19)
+128 MB
+Top of RAM usable for U-Boot at: 88000000
+Reserving 203k for U-Boot at: 87fcc000
+Reserving 192k for malloc() at: 87f9c000
+Reserving 44 Bytes for Board Info at: 87f9bfd4
+Reserving 36 Bytes for Global Data at: 87f9bfb0
+Reserving 128k for boot params() at: 87f7bfb0
+Stack Pointer at: 87f7bf98
+Now running in RAM - U-Boot at: 87fcc000
+Flash Manuf Id 0xc2, DeviceId0 0x20, DeviceId1 0x19
+flash size 32MB, sector count = 512
+Flash: 32 MB
+Power up PLL with outdiv = 0 then switch to 3
+*** Warning *** : PCIe WLAN Module not found !!!
+In:    serial
+Out:   serial
+Err:   serial
+Net:   ath_gmac_enet_initialize...
+No valid address in Flash. Using fixed address
+No valid address in Flash. Using fixed address
+ath_gmac_enet_initialize: reset mask:c02200 
+Honey Bee ---->S27 PHY*
+S27 reg init
+: cfg1 0x800c0000 cfg2 0x7114
+eth0: 00:03:7f:09:0b:ad
+athrs27_phy_setup ATHR_PHY_CONTROL 4 :1000
+athrs27_phy_setup ATHR_PHY_SPEC_STAUS 4 :10
+eth0 up
+Honey Bee ---->  MAC 1 S27 PHY *
+S27 reg init
+ATHRS27: resetting s27
+ATHRS27: s27 reset done
+: cfg1 0x800c0000 cfg2 0x7214
+eth1: 00:03:7f:09:0b:ad
+athrs27_phy_setup ATHR_PHY_CONTROL 0 :1000
+athrs27_phy_setup ATHR_PHY_SPEC_STAUS 0 :10
+athrs27_phy_setup ATHR_PHY_CONTROL 1 :1000
+athrs27_phy_setup ATHR_PHY_SPEC_STAUS 1 :10
+athrs27_phy_setup ATHR_PHY_CONTROL 2 :1000
+athrs27_phy_setup ATHR_PHY_SPEC_STAUS 2 :10
+athrs27_phy_setup ATHR_PHY_CONTROL 3 :1000
+athrs27_phy_setup ATHR_PHY_SPEC_STAUS 3 :10
+eth1 up
+eth0, eth1
+Setting 0x181162c0 to 0x4b97a100
+Hit any key to stop autoboot:  0 
+## Booting image at 9f050000 ...
+   Image Name:   MIPS OpenWrt Linux-6.1.82
+   Created:      2024-03-22  13:17:50 UTC
+   Image Type:   MIPS Linux Kernel Image (lzma compressed)
+   Data Size:    2456946 Bytes =  2.3 MB
+   Load Address: 80060000
+   Entry Point:  80060000
+   Verifying Checksum at 0x9f050040 ...OK
+   Uncompressing Kernel Image ... OK
+No initrd
+## Transferring control to Linux (at address 80060000) ...
+## Giving linux memsize in bytes, 134217728
+
+Starting kernel ...
+
+Seems sysupgrade can take a while to load properly on there....
+
+root@OpenWrt:/# [   82.729614] jffs2_scan_eraseblock(): End of filesystem marker found at 0x0
+[   82.772980] jffs2_build_filesystem(): unlocking the mtd device... 
+[   82.773042] done.
+[   82.781414] jffs2_build_filesystem(): erasing all blocks after the end marker... 
+[   84.381460] eth0: link up (1000Mbps/Full duplex)
+[   84.421489] br-lan: port 1(eth0.1) entered blocking state
+[   84.427166] br-lan: port 1(eth0.1) entered disabled state
+[   84.433119] device eth0.1 entered promiscuous mode
+[   84.438087] device eth0 entered promiscuous mode
+[   84.462968] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+[   84.511877] br-lan: port 1(eth0.1) entered blocking state
+[   84.517551] br-lan: port 1(eth0.1) entered forwarding state
+[   85.452916] IPv6: ADDRCONF(NETDEV_CHANGE): br-lan: link becomes ready
+[  214.669861] done.
+[  214.671901] jffs2: notice: (1969) jffs2_build_xattr_subsystem: complete building xattr subsystem, 0 of xdatum (0 unchecked, 0 orphan) and 0 of xref (0 dead, 0 orphan) found.
+[  214.843190] overlayfs: upper fs does not support tmpfile.
+
+
+Some Mac:
+d2:89:e7:ed:95:7c
+00:0c:f0:60:dc:98
+96:10:ef:78:d0:14
+
+uboot reports:
+No valid address in Flash. Using fixed address
+eth0: 00:03:7f:09:0b:ad
+eth1: 00:00:3c:02:80:ff (being randomized everytime)
+
+
+Investigate on why wireless driver crashes kernel
+Investigate on why ART/MAC addresses is not being set
+
