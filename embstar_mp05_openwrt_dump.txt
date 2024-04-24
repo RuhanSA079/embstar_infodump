@@ -380,7 +380,9 @@ No valid address in Flash. Using fixed address
 eth0: 00:03:7f:09:0b:ad
 eth1: 00:00:3c:02:80:ff (being randomized everytime)
 
+Turns out that using 32M flash allocation damages the ART partition. Please make a backup of it before committing to building/flashing this 32M flash setup.
+I had disabled the Wireless radio in the DTS for now, to avoid crashes, but it still damages the ART partition anyways (MAC addresses, etc)
 
-Investigate on why wireless driver crashes kernel
-Investigate on why ART/MAC addresses is not being set
+TODO: Fix the OpenWRT build by creating a fwconcat (virtual-flash) definition for OpenWRT to understand and leave out the ART partition.
+TODO: Restore the ART partition by dumping another one's ART partition and making up my own MAC addresses (not going to leave this in prod, it is a development device only) and writing back this to my flash.
 
