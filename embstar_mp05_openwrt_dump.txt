@@ -24,18 +24,19 @@ So basically, from this mtdblocks, we can derive the following:
 0x000000ff0000-0x000001000000 : "art"
 Not sure what the rest is?
 
-To be able to support my 32MB flash device, we need to calculate maximum flash size, and then add it to our reg property.
-So, we know that the flash size is 32MB. -> 32 * 1024 * 1000 -> 32768000 bytes -> 0x1F40000.
+To be able to support my 32MB flash device, we need to calculate maximum flash size.
+We need to get a fwconcat or a "mtd-concat", to avoid potential corruption of the "art" partition!
+So, we know that the flash size is 32MB. -> 32 * 1024 * 1000 -> 32768000 bytes -> 0x1F40000. This is the max size of the 32M flash.
 
-We know that our reg property has a <offset, len> valueset, we need to calculate the length of the "firmware" / "rootfs".
-We can do that by taking the 0x1F40000 (32768000) and subtract it from the initial 0x50000 offset (327680) -> len, 32768000 - 327680 = 33226752 -> 0x1EF0000
+So we have some firmware at 0x050000, runs to 0xff0000, then that is the ART partition.
+What about the rest of the flash?
+fwconcat can help with this.
+We need to define the first fwconcat1 as-is, and add a seperate fwconcat after the ART partition.
 
-Thus, we can input this into our device tree property value ->
-partition@50000 {
-	compatible = "denx,uimage";
-	label = "firmware";
-	reg = <0x050000 0x1EF0000>;
-};
+Since we know that the ART partition ends at 0x1000000 (ff0000 + size (10000)) -> Second fwconcat offset -> 0x1000000
+The size, we can easily calculate, since we know the 32MB flash's end -> 0x1F40000.
+fwconcat2 len -> 0x1F40000 - 0x1000000 -> 0xF40000. Thus, to correctly determine the end properly, lets see what the end value is:
+0x1000000 (fwconcat2 offset) + 0xF40000 (fwconcat2 len) -> 0x1F40000 (Exact size of the 32m flash!)
 
 Remember, this is for a 32MB device, your mileage may vary.
 
@@ -165,7 +166,7 @@ gpio15 -> lan2 active-lo
 gpio14 -> lan3 active-lo
 gpio11 -> lan4 active-lo
 gpio17 -> WPS button, active lo (button pressed -> lo, normal is hi)
-gpio0  -> Unused pin.
+gpio0  -> Unused pin?
 gpio12 -> wlan2g (phy0tpt) indicator, active lo
 gpio13 -> wlan5g/status LED (5g radio not used) -> used as status LED (heartbeat in DTB?)
 
